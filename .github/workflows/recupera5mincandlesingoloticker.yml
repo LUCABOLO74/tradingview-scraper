@@ -1,10 +1,10 @@
-name: Get LDO.MI OHLCV positional
+name: Debug LDO.MI first packets
 
 on:
   workflow_dispatch:
 
 jobs:
-  get-ldo-mi-ohlcv:
+  debug-packets:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,28 +18,29 @@ jobs:
           pip install --upgrade pip
           pip install tradingview-scraper
 
-      - name: Inspect signature and fetch OHLCV
+      - name: Print first 3 packets
         run: |
           python - <<'PY'
           import json
           import sys
-          import inspect
           from tradingview_scraper.symbols.stream.price import RealTimeData
 
           try:
               rt = RealTimeData()
+              stream = rt.get_ohlcv("LDO.MI")
 
-              print("SIGNATURE:", inspect.signature(rt.get_ohlcv))
-
-              data = rt.get_ohlcv("LDO.MI")
-
-              first_candle = data[0] if isinstance(data, list) and len(data) > 0 else data
+              packets = []
+              for _ in range(3):
+                  packets.append(next(stream))
 
               print(json.dumps({
                   "symbol": "LDO.MI",
-                  "first_candle": first_candle
+                  "packets": packets
               }, indent=2, ensure_ascii=False, default=str))
 
+          except StopIteration:
+              print("ERROR: Stream terminato prima di 3 pacchetti")
+              sys.exit(1)
           except Exception as e:
               print("ERROR:", str(e))
               sys.exit(1)
