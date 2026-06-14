@@ -4,16 +4,15 @@ from zoneinfo import ZoneInfo
 
 from tradingview_scraper.symbols.stream.price import RealTimeData
 
-
 SYMBOL = "MIL:LDO"
 TZ = ZoneInfo("Europe/Rome")
 
 
-def format_ts(ts: float) -> str:
+def fmt(ts: float) -> str:
     return datetime.fromtimestamp(ts, tz=TZ).strftime("%Y-%m-%d; %H:%M")
 
 
-def parse_first_5_bars_last_day():
+def load_bars():
     rt = RealTimeData()
     stream = rt.get_ohlcv(SYMBOL)
 
@@ -25,13 +24,12 @@ def parse_first_5_bars_last_day():
         if len(payload) < 2:
             continue
 
-        series_block = payload[1].get("sds_1", {})
-        bars = series_block.get("s", [])
-        if not bars:
+        series = payload[1].get("sds_1", {}).get("s", [])
+        if not series:
             continue
 
-        parsed = []
-        for bar in bars:
+        bars = []
+        for bar in series:
             values = bar.get("v", [])
             if len(values) < 6:
                 continue
@@ -39,75 +37,74 @@ def parse_first_5_bars_last_day():
             ts, op, hi, lo, cl, vol = values[:6]
             dt = datetime.fromtimestamp(ts, tz=TZ)
 
-            parsed.append(
-                {
-                    "timestamp": ts,
-                    "dt": dt,
-                    "day": dt.strftime("%Y-%m-%d"),
-                    "open": float(op),
-                    "high": float(hi),
-                    "low": float(lo),
-                    "close": float(cl),
-                    "volume": float(vol),
-                }
-            )
+            bars.append({
+                "timestamp": float(ts),
+                "dt": dt,
+                "day": dt.strftime("%Y-%m-%d"),
+                "hm": dt.strftime("%H:%M"),
+                "open": float(op),
+                "high": float(hi),
+                "low": float(lo),
+                "close": float(cl),
+                "volume": float(vol),
+            })
 
-        if not parsed:
-            continue
+        if bars:
+            return bars
 
-        last_day = max(x["day"] for x in parsed)
-        first_5 = [x for x in parsed if x["day"] == last_day][:5]
-
-        if len(first_5) < 5:
-            raise RuntimeError(f"Trovate solo {len(first_5)} candele per l'ultimo giorno disponibile")
-
-        return first_5
-
-    raise RuntimeError("Nessun pacchetto timescale_update trovato nello stream")
+    raise RuntimeError("Nessun timescale_update trovato")
 
 
-def aggregate_5m(bars):
+def get_0900_to_0904_bars(bars):
+    last_day = max(x["day"] for x in bars)
+    target_times = ["09:00", "09:01", "09:02", "09:03", "09:04"]
+
+    same_day = [x for x in bars if x["day"] == last_day]
+    by_time = {x["hm"]: x for x in same_day}
+
+    missing = [t for t in target_times if t not in by_time]
+    if missing:
+        raise RuntimeError(
+            f"Barre mancanti per {last_day}: {', '.join(missing)}"
+        )
+
+    selected = [by_time[t] for t in target_times]
+    return last_day, selected
+
+
+def aggregate_5m(last_day, bars_1m):
     return {
-        "timestamp": bars[0]["timestamp"],
-        "reference_time": format_ts(bars[0]["timestamp"]),
-        "open": bars[0]["open"],
-        "high": max(x["high"] for x in bars),
-        "low": min(x["low"] for x in bars),
-        "close": bars[-1]["close"],
-        "volume": sum(x["volume"] for x in bars),
+        "timestamp": bars_1m[0]["timestamp"],
+        "reference_time": f"{last_day}; 09:05",
+        "open": bars_1m[0]["open"],
+        "high": max(x["high"] for x in bars_1m),
+        "low": min(x["low"] for x in bars_1m),
+        "close": bars_1m[-1]["close"],
+        "volume": sum(x["volume"] for x in bars_1m),
     }
 
 
 def main():
-    first_5 = parse_first_5_bars_last_day()
-    candle_5m = aggregate_5m(first_5)
+    bars = load_bars()
+    last_day, bars_1m = get_0900_to_0904_bars(bars)
+    candle_5m = aggregate_5m(last_day, bars_1m)
 
     print("SYMBOL:", SYMBOL)
-    print("ULTIMO GIORNO DISPONIBILE:", first_5[0]["day"])
-    print("PRIME 5 CANDELE 1 MIN:")
+    print("GIORNO DI RIFERIMENTO:", last_day)
+    print("CANDELE 1 MIN USATE (09:00-09:04):")
 
-    for bar in first_5:
-        print(
-            json.dumps(
-                {
-                    "timestamp": format_ts(bar["timestamp"]),
-                    "open": bar["open"],
-                    "high": bar["high"],
-                    "low": bar["low"],
-                    "close": bar["close"],
-                    "volume": bar["volume"],
-                },
-                ensure_ascii=False,
-            )
-        )
+    for bar in bars_1m:
+        print(json.dumps({
+            "timestamp": fmt(bar["timestamp"]),
+            "open": bar["open"],
+            "high": bar["high"],
+            "low": bar["low"],
+            "close": bar["close"],
+            "volume": bar["volume"],
+        }, ensure_ascii=False))
 
     print("CANDELA 5 MIN AGGREGATA:")
-    print(
-        json.dumps(
-            candle_5m,
-            ensure_ascii=False,
-        )
-    )
+    print(json.dumps(candle_5m, ensure_ascii=False))
 
 
 if __name__ == "__main__":
