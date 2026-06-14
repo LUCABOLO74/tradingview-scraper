@@ -1,16 +1,13 @@
-name: Get LDO.MI first candle
+name: Get LDO.MI OHLCV
 
 on:
   workflow_dispatch:
 
 jobs:
-  get-first-candle:
+  get-ldo-mi-ohlcv:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -21,23 +18,17 @@ jobs:
           pip install --upgrade pip
           pip install tradingview-scraper
 
-      - name: Get OHLC and volume for LDO.MI
+      - name: Get first candle OHLCV
         run: |
           python - <<'PY'
           import json
           import sys
-
-          result = {}
-
-          try:
-              from tradingview_scraper.symbols.realtime import RealTimeData
-          except Exception as e:
-              print("Import error:", e)
-              sys.exit(1)
+          from tradingview_scraper.symbols.stream.price import RealTimeData
 
           try:
-              scraper = RealTimeData()
-              data = scraper.get_ohlcv(
+              rt = RealTimeData()
+
+              data = rt.get_ohlcv(
                   symbol="LDO.MI",
                   timeframe="1d",
                   bars=1
@@ -47,10 +38,11 @@ jobs:
 
               print(json.dumps({
                   "symbol": "LDO.MI",
+                  "timeframe": "1d",
                   "first_candle": first_candle
-              }, indent=2, ensure_ascii=False))
+              }, indent=2, ensure_ascii=False, default=str))
 
           except Exception as e:
-              print("Runtime error:", str(e))
+              print("ERROR:", str(e))
               sys.exit(1)
           PY
