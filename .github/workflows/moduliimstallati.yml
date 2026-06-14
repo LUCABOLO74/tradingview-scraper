@@ -1,0 +1,32 @@
+name: Inspect tradingview-scraper
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package
+        run: |
+          pip install --upgrade pip
+          pip install tradingview-scraper
+
+      - name: Inspect installed package
+        run: |
+          python - <<'PY'
+          import pkgutil
+          import tradingview_scraper
+
+          print("PACKAGE:", tradingview_scraper.__file__)
+          print("SUBMODULES:")
+
+          for mod in pkgutil.walk_packages(tradingview_scraper.__path__, tradingview_scraper.__name__ + "."):
+              print(mod.name)
+          PY
