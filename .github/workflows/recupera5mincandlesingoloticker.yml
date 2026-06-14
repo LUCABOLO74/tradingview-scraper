@@ -1,13 +1,16 @@
-name: Get MIL:LDO first candle
+name: Run LDO 5m aggregation
 
 on:
   workflow_dispatch:
 
 jobs:
-  get-first-candle:
+  run-script:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -18,30 +21,5 @@ jobs:
           pip install --upgrade pip
           pip install tradingview-scraper
 
-      - name: Read first packets for MIL:LDO
-        run: |
-          python - <<'PY'
-          import json
-          import sys
-          from tradingview_scraper.symbols.stream.price import RealTimeData
-
-          try:
-              rt = RealTimeData()
-              stream = rt.get_ohlcv("MIL:LDO")
-
-              packets = []
-              for _ in range(5):
-                  packets.append(next(stream))
-
-              print(json.dumps({
-                  "symbol": "MIL:LDO",
-                  "packets": packets
-              }, indent=2, ensure_ascii=False, default=str))
-
-          except StopIteration:
-              print("ERROR: Stream terminato prima di 5 pacchetti")
-              sys.exit(1)
-          except Exception as e:
-              print("ERROR:", str(e))
-              sys.exit(1)
-          PY
+      - name: Run script
+        run: python get_ldo_5min.py
