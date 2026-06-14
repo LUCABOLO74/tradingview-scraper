@@ -1,0 +1,43 @@
+name: Inspect methods
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package
+        run: |
+          pip install --upgrade pip
+          pip install tradingview-scraper
+
+      - name: Inspect symbols modules
+        run: |
+          python - <<'PY'
+          import inspect
+
+          modules = [
+              "tradingview_scraper.symbols.technicals",
+              "tradingview_scraper.symbols.stream.price",
+              "tradingview_scraper.symbols.stream.streamer"
+          ]
+
+          for module_name in modules:
+              print("\n" + "=" * 80)
+              print("MODULE:", module_name)
+              mod = __import__(module_name, fromlist=["*"])
+
+              for name, obj in inspect.getmembers(mod):
+                  if inspect.isclass(obj):
+                      print(f"\nCLASS: {name}")
+                      for meth_name, meth in inspect.getmembers(obj):
+                          if inspect.isfunction(meth):
+                              print("  METHOD:", meth_name)
+          PY
