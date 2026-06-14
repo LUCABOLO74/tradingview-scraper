@@ -1,4 +1,4 @@
-name: Get LDO.MI OHLCV
+name: Get LDO.MI OHLCV positional
 
 on:
   workflow_dispatch:
@@ -18,27 +18,25 @@ jobs:
           pip install --upgrade pip
           pip install tradingview-scraper
 
-      - name: Get first candle OHLCV
+      - name: Inspect signature and fetch OHLCV
         run: |
           python - <<'PY'
           import json
           import sys
+          import inspect
           from tradingview_scraper.symbols.stream.price import RealTimeData
 
           try:
               rt = RealTimeData()
 
-              data = rt.get_ohlcv(
-                  symbol="LDO.MI",
-                  timeframe="1d",
-                  bars=1
-              )
+              print("SIGNATURE:", inspect.signature(rt.get_ohlcv))
+
+              data = rt.get_ohlcv("LDO.MI")
 
               first_candle = data[0] if isinstance(data, list) and len(data) > 0 else data
 
               print(json.dumps({
                   "symbol": "LDO.MI",
-                  "timeframe": "1d",
                   "first_candle": first_candle
               }, indent=2, ensure_ascii=False, default=str))
 
