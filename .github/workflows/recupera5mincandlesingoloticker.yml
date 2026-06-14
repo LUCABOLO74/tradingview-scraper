@@ -1,0 +1,56 @@
+name: Get LDO.MI first candle
+
+on:
+  workflow_dispatch:
+
+jobs:
+  get-first-candle:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package
+        run: |
+          pip install --upgrade pip
+          pip install tradingview-scraper
+
+      - name: Get OHLC and volume for LDO.MI
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+
+          result = {}
+
+          try:
+              from tradingview_scraper.symbols.realtime import RealTimeData
+          except Exception as e:
+              print("Import error:", e)
+              sys.exit(1)
+
+          try:
+              scraper = RealTimeData()
+              data = scraper.get_ohlcv(
+                  symbol="LDO.MI",
+                  timeframe="1d",
+                  bars=1
+              )
+
+              first_candle = data[0] if isinstance(data, list) and len(data) > 0 else data
+
+              print(json.dumps({
+                  "symbol": "LDO.MI",
+                  "first_candle": first_candle
+              }, indent=2, ensure_ascii=False))
+
+          except Exception as e:
+              print("Runtime error:", str(e))
+              sys.exit(1)
+          PY
