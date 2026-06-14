@@ -4,7 +4,8 @@ from zoneinfo import ZoneInfo
 
 from tradingview_scraper.symbols.stream.streamer import Streamer
 
-SYMBOL = "MIL:LDO"
+EXCHANGE = "MIL"
+SYMBOL = "LDO"
 TZ = ZoneInfo("Europe/Rome")
 
 
@@ -28,28 +29,48 @@ def normalize_bar(values):
     }
 
 
-def extract_bars_from_result(result):
+def collect_bars(obj):
     bars = []
 
-    if isinstance(result, dict):
-        for _, value in result.items():
+    if isinstance(obj, dict):
+        for value in obj.values():
             if isinstance(value, list):
                 for item in value:
                     if isinstance(item, dict) and "v" in item and len(item["v"]) >= 6:
                         bars.append(normalize_bar(item["v"]))
+                    elif isinstance(item, dict):
+                        bars.extend(collect_bars(item))
+            elif isinstance(value, dict):
+                bars.extend(collect_bars(value))
+
+    elif isinstance(obj, list):
+        for item in obj:
+            if isinstance(item, dict) and "v" in item and len(item["v"]) >= 6:
+                bars.append(normalize_bar(item["v"]))
+            elif isinstance(item, (dict, list)):
+                bars.extend(collect_bars(item))
 
     return bars
 
 
 def load_historical_bars():
     streamer = Streamer(export_result=True, export_type="json")
-    result = streamer.stream(symbol=SYMBOL)
-    bars = extract_bars_from_result(result)
+    result = streamer.stream(
+        exchange=EXCHANGE,
+        symbol=SYMBOL,
+        timeframe="1m",
+        numb_price_candles=600
+    )
 
+    bars = collect_bars(result)
     if not bars:
-        raise RuntimeError("Nessuna barra storica trovata con Streamer")
+        raise RuntimeError("Nessuna barra trovata nell'output di Streamer")
 
-    return sorted(bars, key=lambda x: x["timestamp"])
+    unique = {}
+    for bar in bars:
+        unique[bar["timestamp"]] = bar
+
+    return sorted(unique.values(), key=lambda x: x["timestamp"])
 
 
 def get_opening_5_bars(bars):
@@ -61,7 +82,10 @@ def get_opening_5_bars(bars):
 
     missing = [t for t in target_times if t not in by_time]
     if missing:
-        raise RuntimeError(f"Barre mancanti per {last_day}: {', '.join(missing)}")
+        sample_times = [x["hm"] for x in same_day[:20]]
+        raise RuntimeError(
+            f"Barre mancanti per {last_day}: {', '.join(missing)} | Orari disponibili esempio: {sample_times}"
+        )
 
     selected = [by_time[t] for t in target_times]
     return last_day, selected
@@ -84,7 +108,7 @@ def main():
     last_day, bars_1m = get_opening_5_bars(bars)
     candle_5m = aggregate_5m(last_day, bars_1m)
 
-    print("SYMBOL:", SYMBOL)
+    print(f"SYMBOL: {EXCHANGE}:{SYMBOL}")
     print("GIORNO DI RIFERIMENTO:", last_day)
     print("CANDELE 1 MIN USATE (09:00-09:04):")
 
