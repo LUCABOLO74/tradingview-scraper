@@ -1,0 +1,29 @@
+name: Test tradingview-scraper
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install package
+        run: pip install tradingview-scraper
+
+      - name: Run simple test
+        run: |
+          python - <<'PY'
+          from tradingview_scraper.symbols.technicals import Indicators
+          scraper = Indicators(export_result=False, export_type='json')
+          data = scraper.scrape(symbol="BTCUSD", timeframe="1d", indicators=["RSI"])
+          print(data)
+          PY
