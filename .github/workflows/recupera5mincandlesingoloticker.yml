@@ -1,10 +1,10 @@
-name: Debug LDO.MI first packets
+name: Get MIL:LDO first candle
 
 on:
   workflow_dispatch:
 
 jobs:
-  debug-packets:
+  get-first-candle:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,7 +18,7 @@ jobs:
           pip install --upgrade pip
           pip install tradingview-scraper
 
-      - name: Print first 3 packets
+      - name: Read first packets for MIL:LDO
         run: |
           python - <<'PY'
           import json
@@ -27,19 +27,19 @@ jobs:
 
           try:
               rt = RealTimeData()
-              stream = rt.get_ohlcv("LDO.MI")
+              stream = rt.get_ohlcv("MIL:LDO")
 
               packets = []
-              for _ in range(3):
+              for _ in range(5):
                   packets.append(next(stream))
 
               print(json.dumps({
-                  "symbol": "LDO.MI",
+                  "symbol": "MIL:LDO",
                   "packets": packets
               }, indent=2, ensure_ascii=False, default=str))
 
           except StopIteration:
-              print("ERROR: Stream terminato prima di 3 pacchetti")
+              print("ERROR: Stream terminato prima di 5 pacchetti")
               sys.exit(1)
           except Exception as e:
               print("ERROR:", str(e))
