@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from tradingview_scraper.symbols.stream.price import RealTimeData
+from tradingview_scraper.symbols.stream.streamer import Streamer
 
 SYMBOL = "MIL:LDO"
 TZ = ZoneInfo("Europe/Rome")
@@ -12,50 +12,47 @@ def fmt(ts: float) -> str:
     return datetime.fromtimestamp(ts, tz=TZ).strftime("%Y-%m-%d; %H:%M")
 
 
-def load_bars():
-    rt = RealTimeData()
-    stream = rt.get_ohlcv(SYMBOL)
-
-    for packet in stream:
-        if packet.get("m") != "timescale_update":
-            continue
-
-        payload = packet.get("p", [])
-        if len(payload) < 2:
-            continue
-
-        series = payload[1].get("sds_1", {}).get("s", [])
-        if not series:
-            continue
-
-        bars = []
-        for bar in series:
-            values = bar.get("v", [])
-            if len(values) < 6:
-                continue
-
-            ts, op, hi, lo, cl, vol = values[:6]
-            dt = datetime.fromtimestamp(ts, tz=TZ)
-
-            bars.append({
-                "timestamp": float(ts),
-                "dt": dt,
-                "day": dt.strftime("%Y-%m-%d"),
-                "hm": dt.strftime("%H:%M"),
-                "open": float(op),
-                "high": float(hi),
-                "low": float(lo),
-                "close": float(cl),
-                "volume": float(vol),
-            })
-
-        if bars:
-            return bars
-
-    raise RuntimeError("Nessun timescale_update trovato")
+def normalize_bar(values):
+    ts, op, hi, lo, cl, vol = values[:6]
+    dt = datetime.fromtimestamp(ts, tz=TZ)
+    return {
+        "timestamp": float(ts),
+        "dt": dt,
+        "day": dt.strftime("%Y-%m-%d"),
+        "hm": dt.strftime("%H:%M"),
+        "open": float(op),
+        "high": float(hi),
+        "low": float(lo),
+        "close": float(cl),
+        "volume": float(vol),
+    }
 
 
-def get_0900_to_0904_bars(bars):
+def extract_bars_from_result(result):
+    bars = []
+
+    if isinstance(result, dict):
+        for _, value in result.items():
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict) and "v" in item and len(item["v"]) >= 6:
+                        bars.append(normalize_bar(item["v"]))
+
+    return bars
+
+
+def load_historical_bars():
+    streamer = Streamer(export_result=True, export_type="json")
+    result = streamer.stream(symbol=SYMBOL)
+    bars = extract_bars_from_result(result)
+
+    if not bars:
+        raise RuntimeError("Nessuna barra storica trovata con Streamer")
+
+    return sorted(bars, key=lambda x: x["timestamp"])
+
+
+def get_opening_5_bars(bars):
     last_day = max(x["day"] for x in bars)
     target_times = ["09:00", "09:01", "09:02", "09:03", "09:04"]
 
@@ -64,9 +61,7 @@ def get_0900_to_0904_bars(bars):
 
     missing = [t for t in target_times if t not in by_time]
     if missing:
-        raise RuntimeError(
-            f"Barre mancanti per {last_day}: {', '.join(missing)}"
-        )
+        raise RuntimeError(f"Barre mancanti per {last_day}: {', '.join(missing)}")
 
     selected = [by_time[t] for t in target_times]
     return last_day, selected
@@ -85,8 +80,8 @@ def aggregate_5m(last_day, bars_1m):
 
 
 def main():
-    bars = load_bars()
-    last_day, bars_1m = get_0900_to_0904_bars(bars)
+    bars = load_historical_bars()
+    last_day, bars_1m = get_opening_5_bars(bars)
     candle_5m = aggregate_5m(last_day, bars_1m)
 
     print("SYMBOL:", SYMBOL)
