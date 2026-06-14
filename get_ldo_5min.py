@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from tradingview_scraper.symbols.stream.streamer import Streamer
@@ -7,6 +8,7 @@ from tradingview_scraper.symbols.stream.streamer import Streamer
 EXCHANGE = "MIL"
 SYMBOL = "LDO"
 TZ = ZoneInfo("Europe/Rome")
+EXPORT_DIR = Path("export")
 
 
 def fmt(ts: float) -> str:
@@ -33,44 +35,51 @@ def collect_bars(obj):
     bars = []
 
     if isinstance(obj, dict):
+        if "v" in obj and isinstance(obj["v"], list) and len(obj["v"]) >= 6:
+            bars.append(normalize_bar(obj["v"]))
+
         for value in obj.values():
-            if isinstance(value, list):
-                for item in value:
-                    if isinstance(item, dict) and "v" in item and len(item["v"]) >= 6:
-                        bars.append(normalize_bar(item["v"]))
-                    elif isinstance(item, dict):
-                        bars.extend(collect_bars(item))
-            elif isinstance(value, dict):
-                bars.extend(collect_bars(value))
+            bars.extend(collect_bars(value))
 
     elif isinstance(obj, list):
         for item in obj:
-            if isinstance(item, dict) and "v" in item and len(item["v"]) >= 6:
-                bars.append(normalize_bar(item["v"]))
-            elif isinstance(item, (dict, list)):
-                bars.extend(collect_bars(item))
+            bars.extend(collect_bars(item))
 
     return bars
 
 
+def latest_export_file():
+    files = sorted(EXPORT_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not files:
+        raise RuntimeError("Nessun file JSON trovato nella cartella export")
+    return files[0]
+
+
 def load_historical_bars():
+    EXPORT_DIR.mkdir(exist_ok=True)
+
     streamer = Streamer(export_result=True, export_type="json")
-    result = streamer.stream(
+    streamer.stream(
         exchange=EXCHANGE,
         symbol=SYMBOL,
         timeframe="1m",
         numb_price_candles=600
     )
 
-    bars = collect_bars(result)
+    export_file = latest_export_file()
+
+    with export_file.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    bars = collect_bars(data)
     if not bars:
-        raise RuntimeError("Nessuna barra trovata nell'output di Streamer")
+        raise RuntimeError(f"Nessuna barra trovata nel file {export_file}")
 
     unique = {}
     for bar in bars:
         unique[bar["timestamp"]] = bar
 
-    return sorted(unique.values(), key=lambda x: x["timestamp"])
+    return export_file, sorted(unique.values(), key=lambda x: x["timestamp"])
 
 
 def get_opening_5_bars(bars):
@@ -82,7 +91,7 @@ def get_opening_5_bars(bars):
 
     missing = [t for t in target_times if t not in by_time]
     if missing:
-        sample_times = [x["hm"] for x in same_day[:20]]
+        sample_times = [x["hm"] for x in same_day[:40]]
         raise RuntimeError(
             f"Barre mancanti per {last_day}: {', '.join(missing)} | Orari disponibili esempio: {sample_times}"
         )
@@ -104,10 +113,11 @@ def aggregate_5m(last_day, bars_1m):
 
 
 def main():
-    bars = load_historical_bars()
+    export_file, bars = load_historical_bars()
     last_day, bars_1m = get_opening_5_bars(bars)
     candle_5m = aggregate_5m(last_day, bars_1m)
 
+    print("FILE EXPORT LETTO:", str(export_file))
     print(f"SYMBOL: {EXCHANGE}:{SYMBOL}")
     print("GIORNO DI RIFERIMENTO:", last_day)
     print("CANDELE 1 MIN USATE (09:00-09:04):")
