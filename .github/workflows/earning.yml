@@ -22,4 +22,8 @@ jobs:
           pip install tradingview-scraper
 
       - name: Run script
-        run: python earning1.py
+        
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python -u earning1.py
