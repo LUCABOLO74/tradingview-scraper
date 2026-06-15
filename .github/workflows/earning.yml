@@ -1,4 +1,4 @@
-name: Run LDO 5m aggregation
+name: Run earning1
 
 on:
   workflow_dispatch:
