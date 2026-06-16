@@ -2,6 +2,7 @@ from tradingview_scraper.symbols.cal import CalendarScraper
 from datetime import datetime, timedelta
 
 def log_calendario_earnings():
+    print("log)
     try:
         log.info("=" * 80)
         log.info("CALENDARIO EARNINGS TRADINGVIEW - PROSSIMI 7 GIORNI - MERCATO USA")
@@ -50,6 +51,7 @@ def log_calendario_earnings():
     except Exception as e:
         log.warning(f"Impossibile scaricare/loggare il calendario earnings: {e}")
 def main():
+    print("main")
     log.info("=" * 80)
     log.info("LETTURA REPORT GIORNALIERO ORB 5M + COMPILAZIONE ORDINI ACTIVTRADER")
     log.info("=" * 80)
