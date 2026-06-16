@@ -2,14 +2,14 @@ from tradingview_scraper.symbols.cal import CalendarScraper
 from datetime import datetime, timedelta
 
 def log_calendario_earnings():
-    print("log)
+    print("log")
     try:
         log.info("=" * 80)
         log.info("CALENDARIO EARNINGS TRADINGVIEW - PROSSIMI 7 GIORNI - MERCATO USA")
         log.info("=" * 80)
-
+        print("inizio. calendar")
         calendar_scraper = CalendarScraper()
-
+        print("fine calendar")
         timestamp_now = datetime.now().timestamp()
         timestamp_in_7_days = (datetime.now() + timedelta(days=7)).timestamp()
 
@@ -19,7 +19,7 @@ def log_calendario_earnings():
             ["america"],
             values=["logoid", "name", "earnings_per_share_fq"]
         )
-
+        print(res)
         if not res:
             log.info("Nessun earnings trovato nel range richiesto.")
             return
