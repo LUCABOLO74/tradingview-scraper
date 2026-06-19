@@ -80,10 +80,10 @@ def main():
     #ko_count = len(risultati) - ok_count
 
     log.info("-" * 80)
-    log.info(f"Totale ordini elaborati: {len(risultati)}")
-    log.info(f"Ordini compilati correttamente: {ok_count}")
-    log.info(f"Ordini con errore: {ko_count}")
-    log.info("-" * 80)
+    #log.info(f"Totale ordini elaborati: {len(risultati)}")
+    #log.info(f"Ordini compilati correttamente: {ok_count}")
+    #log.info(f"Ordini con errore: {ko_count}")
+    #log.info("-" * 80)
  
 if __name__ == "__main__":
     main()
