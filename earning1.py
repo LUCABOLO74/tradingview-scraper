@@ -1,5 +1,13 @@
 from tradingview_scraper.symbols.cal import CalendarScraper
 from datetime import datetime, timedelta
+import logging
+
+log = logging.getLogger(__name__)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
 
 def log_calendario_earnings():
     print("log")
