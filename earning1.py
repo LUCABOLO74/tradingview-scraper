@@ -69,15 +69,15 @@ def main():
     #report_path = find_latest_orb_report()
     #ordini = parse_report_rows(report_path)
 
-    if not ordini:
-        log.info("Nessun ordine valido da inviare.")
-        return
+    #if not ordini:
+        #log.info("Nessun ordine valido da inviare.")
+        #return
 
-    risultati = asyncio.run(esegui_ordini_da_lista(ordini))
-    salva_risultati(risultati, Config.OUTPUT_REPORT)
+    #risultati = asyncio.run(esegui_ordini_da_lista(ordini))
+    #salva_risultati(risultati, Config.OUTPUT_REPORT)
 
-    ok_count = sum(1 for r in risultati if r["ok"])
-    ko_count = len(risultati) - ok_count
+    #ok_count = sum(1 for r in risultati if r["ok"])
+    #ko_count = len(risultati) - ok_count
 
     log.info("-" * 80)
     log.info(f"Totale ordini elaborati: {len(risultati)}")
