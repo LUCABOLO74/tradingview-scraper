@@ -76,4 +76,6 @@ def main():
     log.info(f"Ordini compilati correttamente: {ok_count}")
     log.info(f"Ordini con errore: {ko_count}")
     log.info("-" * 80)
-  
+ 
+if __name__ == "__main__":
+    main()
