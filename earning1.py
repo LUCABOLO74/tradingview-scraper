@@ -66,8 +66,8 @@ def main():
 
     log_calendario_earnings()
 
-    report_path = find_latest_orb_report()
-    ordini = parse_report_rows(report_path)
+    #report_path = find_latest_orb_report()
+    #ordini = parse_report_rows(report_path)
 
     if not ordini:
         log.info("Nessun ordine valido da inviare.")
