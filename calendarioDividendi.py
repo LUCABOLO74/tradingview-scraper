@@ -23,38 +23,27 @@ def log_calendario_dividendi():
             timestamp_now,
             timestamp_in_7_days,
             ["america"],
-            values=["logoid", "name", "amount", "ex_date", "pay_date", "div_yield"]
+            values=["logoid", "name", "date", "gross", "net"]
         )
 
         if not res:
             log.info("Nessun dividendo trovato nel range richiesto.")
             return
 
-        if isinstance(res, dict):
-            records = res.get("data", [])
-        else:
-            records = res
+        records = res.get("data", []) if isinstance(res, dict) else res
 
         if not records:
             log.info("Nessun record dividendi disponibile.")
             return
 
         for i, item in enumerate(records, start=1):
-            nome = item.get("name", "")
-            logoid = item.get("logoid", "")
-            amount = item.get("amount", "")
-            ex_date = item.get("ex_date", "")
-            pay_date = item.get("pay_date", "")
-            div_yield = item.get("div_yield", "")
-
             log.info(
                 f"[DIVIDENDO {i}] "
-                f"name={nome} | "
-                f"logoid={logoid} | "
-                f"amount={amount} | "
-                f"ex_date={ex_date} | "
-                f"pay_date={pay_date} | "
-                f"div_yield={div_yield}"
+                f"name={item.get('name', '')} | "
+                f"logoid={item.get('logoid', '')} | "
+                f"date={item.get('date', '')} | "
+                f"gross={item.get('gross', '')} | "
+                f"net={item.get('net', '')}"
             )
 
         log.info(f"Totale record dividendi trovati: {len(records)}")
@@ -62,7 +51,6 @@ def log_calendario_dividendi():
 
     except Exception as e:
         log.warning(f"Impossibile scaricare/loggare il calendario dividendi: {e}")
-
 
 def main():
     log.info("=" * 80)
@@ -72,7 +60,6 @@ def main():
     log_calendario_dividendi()
 
     log.info("-" * 80)
-
 
 if __name__ == "__main__":
     main()
