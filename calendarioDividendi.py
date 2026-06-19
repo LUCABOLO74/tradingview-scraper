@@ -1,6 +1,7 @@
 from tradingview_scraper.symbols.cal import CalendarScraper
 from datetime import datetime, timedelta
 import logging
+import json
 
 log = logging.getLogger(__name__)
 
@@ -22,8 +23,7 @@ def log_calendario_dividendi():
         res = calendar_scraper.scrape_dividends(
             timestamp_now,
             timestamp_in_7_days,
-            ["america"],
-            values=["logoid", "name", "date", "gross", "net"]
+            ["america"]
         )
 
         if not res:
@@ -36,17 +36,12 @@ def log_calendario_dividendi():
             log.info("Nessun record dividendi disponibile.")
             return
 
-        for i, item in enumerate(records, start=1):
-            log.info(
-                f"[DIVIDENDO {i}] "
-                f"name={item.get('name', '')} | "
-                f"logoid={item.get('logoid', '')} | "
-                f"date={item.get('date', '')} | "
-                f"gross={item.get('gross', '')} | "
-                f"net={item.get('net', '')}"
-            )
-
         log.info(f"Totale record dividendi trovati: {len(records)}")
+        log.info(f"Primo record dividendo: {json.dumps(records[0], ensure_ascii=False)}")
+
+        for i, item in enumerate(records[:20], start=1):
+            log.info(f"[DIVIDENDO {i}] {json.dumps(item, ensure_ascii=False)}")
+
         log.info("=" * 80)
 
     except Exception as e:
