@@ -22,4 +22,4 @@ jobs:
           pip install tradingview-scraper
 
       - name: Run script
-        run: python ema9ema26gold.py
+        run: python ema9ema26gild.py
