@@ -1,4 +1,4 @@
-name: Run ema9ema26gold
+name: ema9ema26gold
 
 on:
   workflow_dispatch:
