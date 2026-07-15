@@ -1,28 +1,36 @@
 #!/usr/bin/env python3
 """
 Script per ottenere EMA9 e EMA26 di XAUUSD in real-time
-Aggiornamento continuo con stampa a video
 
-Questa versione normalizza i timeframe (es. "1", "60", "1m", "1h", "1M") prima di passare
-alla classe Indicators che richiede chiavi come "1m","5m","15m","30m","1h","2h","4h","1d","1w","1M".
+Versione con diagnostica per ambienti CI:
+- stampa diagnostica subito (flush=True)
+- TEST_MODE / CI_TEST_MODE = "1" -> esegue una sola chiamata (utile per pipeline)
+- SLEEP_SECONDS permette di ridurre l'attesa durante i test
 """
 
+import os
+import sys
 import time
+import logging
+import traceback
 from datetime import datetime
-from tradingview_scraper.symbols.technicals import Indicators
+
+# Provo ad importare Indicators in modo robusto per mostrare eventuali errori d'import
+try:
+    from tradingview_scraper.symbols.technicals import Indicators
+except Exception as e:
+    # Stampa diagnostica dettagliata e esce con codice di errore così il CI fallisce visibilmente
+    print("❌ Errore durante l'import di Indicators:", flush=True)
+    traceback.print_exc()
+    sys.exit(2)
+
+# Configuro logging in modo che gli errori vengano mostrati nella console
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+logger = logging.getLogger(__name__)
 
 def normalize_timeframe(tf) -> str:
     """
     Normalizza valori comuni di timeframe nel formato atteso dalla libreria.
-
-    Accetta:
-      - numeri in stringa: "1","5","15","30","60","120","240"
-      - notazioni con unità: "1m","5m","15m","30m","1h","2h","4h","1d","1w","1M"
-      - la specifica "1M" (mese) viene resa esattamente "1M"
-    Restituisce:
-      - una stringa corrispondente a una chiave valida: "1m","5m","15m","30m","1h","2h","4h","1d","1w","1M"
-    Lancia:
-      - ValueError se il timeframe non è supportato.
     """
     if tf is None:
         raise ValueError("Timeframe non valido: valore mancante")
@@ -31,7 +39,7 @@ def normalize_timeframe(tf) -> str:
     if not tf_orig:
         raise ValueError("Timeframe non valido: stringa vuota")
 
-    # Gestione esplicita per '1M' (mese) per evitare collisione con '1m' (minuto)
+    # Gestione esplicita per '1M' (mese)
     if tf_orig == "1M":
         return "1M"
 
@@ -40,6 +48,7 @@ def normalize_timeframe(tf) -> str:
     mapping = {
         # numerici comuni -> chiave
         "1": "1m",
+        "3": "3m",
         "5": "5m",
         "15": "15m",
         "30": "30m",
@@ -48,6 +57,7 @@ def normalize_timeframe(tf) -> str:
         "240": "4h",
         # già in notazione
         "1m": "1m",
+        "3m": "3m",
         "5m": "5m",
         "15m": "15m",
         "30m": "30m",
@@ -66,41 +76,48 @@ def normalize_timeframe(tf) -> str:
     if tf_lower in mapping:
         return mapping[tf_lower]
 
-    # supporta anche "d", "w" (senza numero) come alias per 1d e 1w
     if tf_lower == "d":
         return "1d"
     if tf_lower == "w":
         return "1w"
 
-    supported = ", ".join(["1m","5m","15m","30m","1h","2h","4h","1d","1w","1M"])
+    supported = ", ".join(["1m","3m","5m","15m","30m","1h","2h","4h","1d","1w","1M"])
     raise ValueError(f"Timeframe non supportato: {tf_orig}. Valori supportati: {supported}")
 
 def get_ema_realtime_continuous(symbol="XAUUSD", exchange="OANDA", timeframe="1"):
     """
-    Ottiene EMA9 e EMA26 in tempo reale e li stampa continuamente
-
-    Args:
-        symbol: Simbolo del titolo (default: XAUUSD)
-        exchange: Exchange (default: OANDA per l'oro)
-        timeframe: Timeframe in formato utente (es. "1", "1m", "1h", "1M")
+    Ottiene EMA9 e EMA26 in tempo reale e li stampa continuamente.
+    Usa TEST_MODE/CI_TEST_MODE env var per eseguire solo una iterazione in CI.
+    Usa SLEEP_SECONDS env var per cambiare il tempo di attesa (default 60).
     """
-    # Normalizza il timeframe prima di inizializzare lo scraping
+    # Informazioni di avvio (diagnostica)
+    print("🚀 Avvio script ema9ema26gild.py", flush=True)
+    print(f"  symbol={symbol}, exchange={exchange}, timeframe(input)={timeframe}", flush=True)
+
+    # Normalizza il timeframe
     try:
         timeframe_normalized = normalize_timeframe(timeframe)
     except ValueError as e:
-        print(f"❌ Timeframe non valido: {e}")
+        print(f"❌ Timeframe non valido: {e}", flush=True)
         return
 
-    # Inizializza lo scraper
-    indicators_scraper = Indicators(export_result=False)
+    # Inizializza lo scraper (avvolto in try/except per mostrare eventuali problemi)
+    try:
+        indicators_scraper = Indicators(export_result=False)
+    except Exception:
+        print("❌ Errore durante l'inizializzazione di Indicators:", flush=True)
+        traceback.print_exc()
+        return
 
-    print("=" * 80)
-    print(f"🔄 Inizio streaming EMA9 e EMA26 per {symbol}")
-    print(f"Exchange: {exchange} | Timeframe: {timeframe_normalized}")
-    print("=" * 80)
-    print()
+    print("=" * 80, flush=True)
+    print(f"🔄 Inizio streaming EMA9 e EMA26 per {symbol}", flush=True)
+    print(f"Exchange: {exchange} | Timeframe: {timeframe_normalized}", flush=True)
+    print("=" * 80, flush=True)
+    print(flush=True)
 
     iteration = 0
+    sleep_seconds = int(os.getenv("SLEEP_SECONDS", "60"))
+    test_mode = os.getenv("TEST_MODE") == "1" or os.getenv("CI_TEST_MODE") == "1"
 
     try:
         while True:
@@ -138,54 +155,61 @@ def get_ema_realtime_continuous(symbol="XAUUSD", exchange="OANDA", timeframe="1"
                         signal = "⚪ NEUTRAL"
 
                     # Stampa i risultati
-                    print(f"[{timestamp}] #{iteration}")
-                    print(f"  EMA9  : {ema9_str}")
-                    print(f"  EMA26 : {ema26_str}")
-                    print(f"  Diff  : {diff_str} {signal}")
-                    print("-" * 80)
+                    print(f"[{timestamp}] #{iteration}", flush=True)
+                    print(f"  EMA9  : {ema9_str}", flush=True)
+                    print(f"  EMA26 : {ema26_str}", flush=True)
+                    print(f"  Diff  : {diff_str} {signal}", flush=True)
+                    print("-" * 80, flush=True)
 
                 else:
-                    print(f"[{timestamp}] ❌ Errore: Scraping fallito")
-                    print(f"  Risposta: {result}")
-                    print("-" * 80)
+                    print(f"[{timestamp}] ❌ Errore: Scraping fallito", flush=True)
+                    print(f"  Risposta: {result}", flush=True)
+                    print("-" * 80, flush=True)
 
-            except Exception as e:
-                print(f"[{timestamp}] ❌ Eccezione: {str(e)}")
-                print("-" * 80)
+            except Exception:
+                print(f"[{timestamp}] ❌ Eccezione durante lo scraping:", flush=True)
+                traceback.print_exc()
+                print("-" * 80, flush=True)
 
-            # Attendi 60 secondi prima del prossimo aggiornamento
-            print(f"⏳ Prossimo aggiornamento tra 60 secondi...\n")
-            time.sleep(60)
+            # Se in TEST_MODE, eseguo solo una iterazione e poi esco (utile per CI)
+            if test_mode:
+                print("🧪 TEST_MODE attivo: esco dopo la prima iterazione.", flush=True)
+                break
+
+            # Attendi prima del prossimo aggiornamento
+            print(f"⏳ Prossimo aggiornamento tra {sleep_seconds} secondi...\n", flush=True)
+            time.sleep(sleep_seconds)
 
     except KeyboardInterrupt:
-        print("\n\n" + "=" * 80)
-        print("❌ Streaming interrotto dall'utente")
-        print(f"Total iterazioni: {iteration}")
-        print("=" * 80)
-
+        print("\n\n" + "=" * 80, flush=True)
+        print("❌ Streaming interrotto dall'utente", flush=True)
+        print(f"Total iterazioni: {iteration}", flush=True)
+        print("=" * 80, flush=True)
 
 def get_ema_once(symbol="XAUUSD", exchange="OANDA", timeframe="1"):
     """
     Ottiene EMA9 e EMA26 una sola volta
-
-    Args:
-        symbol: Simbolo del titolo
-        exchange: Exchange
-        timeframe: Timeframe in formato utente (es. "1", "1m", "1h", "1M")
     """
+    print("📡 Esecuzione lettura singola", flush=True)
     try:
         timeframe_normalized = normalize_timeframe(timeframe)
     except ValueError as e:
-        print(f"❌ Timeframe non valido: {e}")
+        print(f"❌ Timeframe non valido: {e}", flush=True)
         return
 
-    indicators_scraper = Indicators(export_result=False)
+    try:
+        indicators_scraper = Indicators(export_result=False)
+    except Exception:
+        print("❌ Errore durante l'inizializzazione di Indicators:", flush=True)
+        traceback.print_exc()
+        return
+
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    print("=" * 80)
-    print(f"📊 Lettura singola EMA9 e EMA26 per {symbol}")
-    print(f"Exchange: {exchange} | Timeframe: {timeframe_normalized}")
-    print("=" * 80)
+    print("=" * 80, flush=True)
+    print(f"📊 Lettura singola EMA9 e EMA26 per {symbol}", flush=True)
+    print(f"Exchange: {exchange} | Timeframe: {timeframe_normalized}", flush=True)
+    print("=" * 80, flush=True)
 
     try:
         result = indicators_scraper.scrape(
@@ -202,23 +226,25 @@ def get_ema_once(symbol="XAUUSD", exchange="OANDA", timeframe="1"):
             ema9 = data.get('EMA9', 'N/A')
             ema26 = data.get('EMA26', 'N/A')
 
-            print(f"\n[{timestamp}]")
-            print(f"  EMA9  : {ema9}")
-            print(f"  EMA26 : {ema26}")
-            print(f"\nDati completi: {data}")
+            print(f"\n[{timestamp}]", flush=True)
+            print(f"  EMA9  : {ema9}", flush=True)
+            print(f"  EMA26 : {ema26}", flush=True)
+            print(f"\nDati completi: {data}", flush=True)
         else:
-            print(f"❌ Errore: {result}")
+            print(f"❌ Errore: {result}", flush=True)
 
-    except Exception as e:
-        print(f"❌ Eccezione: {str(e)}")
-
+    except Exception:
+        print(f"❌ Eccezione durante lo scraping:", flush=True)
+        traceback.print_exc()
 
 if __name__ == "__main__":
-    # OPZIONE 1: Streaming continuo (uncommentare per usare)
-    # ========================================================
-    # Puoi passare "1" (compatibilità), "1m", "1h", "1M" ecc.
-    get_ema_realtime_continuous(symbol="XAUUSD", exchange="OANDA", timeframe="1")
+    # Comando diagnostico iniziale per capire se lo script parte in CI
+    print("=== Eseguo come script principale ===", flush=True)
+    print(f"PID={os.getpid()} PYTHONUNBUFFERED={os.getenv('PYTHONUNBUFFERED')} TEST_MODE={os.getenv('TEST_MODE')} CI_TEST_MODE={os.getenv('CI_TEST_MODE')}", flush=True)
 
-    # OPZIONE 2: Lettura singola (uncommentare per usare)
-    # ========================================================
-    # get_ema_once(symbol="XAUUSD", exchange="OANDA", timeframe="1")
+    # Modalità: se TEST_MODE o CI_TEST_MODE è impostato a "1", eseguo get_ema_once per terminare velocemente
+    if os.getenv("TEST_MODE") == "1" or os.getenv("CI_TEST_MODE") == "1":
+        get_ema_once(symbol=os.getenv("SYMBOL", "XAUUSD"), exchange=os.getenv("EXCHANGE", "OANDA"), timeframe=os.getenv("TIMEFRAME", "1"))
+    else:
+        # Default: streaming continuo (se vuoi evitare il loop in CI imposta TEST_MODE=1)
+        get_ema_realtime_continuous(symbol=os.getenv("SYMBOL", "XAUUSD"), exchange=os.getenv("EXCHANGE", "OANDA"), timeframe=os.getenv("TIMEFRAME", "1"))
